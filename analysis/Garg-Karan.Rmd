@@ -1,0 +1,991 @@
+---
+title: "Characterising the constituents for the House of Representative members in Victoria"
+subtitle: Assignment 2, Master of Business Analytics
+author: Prepared by Karan Garg, 32106580, kgar0017@student.monash.edu 
+date: '`r Sys.Date()`'
+output:
+  bookdown::html_document2: 
+              css: monashreport.css
+              includes:
+               before_body: header.html
+  bookdown::pdf_document2: default
+keep_md: true    
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, 
+                      messages = FALSE, 
+                      warning = FALSE)
+library(tidyverse)
+library(sf)
+library(ggplot2)
+library(plotly)
+library(ggthemes)
+library(kableExtra)
+library(tidytext)
+```
+
+```{r read-data,include=FALSE}
+geopath_SPCA_GPA <- here::here("data/Geopackage_2016_SPCA_for_VIC/census2016_spca_vic_short.gpkg") 
+st_layers(geopath_SPCA_GPA)
+geopath_CLDA_GPA <- here::here("data/Geopackage_2016_CLDA_for_VIC/census2016_clda_vic_short.gpkg") 
+st_layers(geopath_CLDA_GPA)
+geopath_EQA_GPA <- here::here("data/Geopackage_2016_EQA_for_VIC/census2016_eqa_vic_short.gpkg") 
+st_layers(geopath_EQA_GPA)
+geopath_CLDH_GPH <- here::here("data/Geopackage_2016_CLDH_for_VIC/census2016_cldh_vic_short.gpkg") 
+st_layers(geopath_CLDH_GPH)
+
+
+vic_map <- read_sf(here::here("data/vic-july-2018-esri/E_AUGFN3_region.shp")) %>% 
+  # to match up with election data
+  mutate(DivisionNm = toupper(Elect_div))
+
+places <- c("MELBOURNE","KOOYONG","MACNAMARA","CHISHOLM","HIGGINS","GOLDSTEIN","HOTHAM")
+
+sa1_spca <- read_sf(geopath_SPCA_GPA, layer = "census2016_spca_vic_sa1_short") %>%
+  mutate(centroid = map(geom, st_centroid),
+         centroid = st_as_sfc(centroid, crs = st_crs(vic_map)),
+         which = as.integer(st_intersects(centroid, vic_map)),
+         Elect_div = ifelse(is.na(which),
+                                  "None",
+                                    vic_map$Elect_div[which]))     
+
+
+sa1_spca_places <- sa1_spca %>%                            
+  mutate(Elect_div = toupper(Elect_div)) %>% 
+    filter(Elect_div %in% places) 
+
+sa1_clda <- read_sf(geopath_CLDA_GPA, layer = "census2016_clda_vic_sa1_short") %>%
+  mutate(centroid = map(geom, st_centroid),
+         centroid = st_as_sfc(centroid, crs = st_crs(vic_map)),
+         which = as.integer(st_intersects(centroid, vic_map)),
+         Elect_div = ifelse(is.na(which),
+                                 "None",
+                                    vic_map$Elect_div[which]))     
+
+sa1_clda_places <- sa1_clda %>%                            
+  mutate(Elect_div = toupper(Elect_div)) %>% 
+    filter(Elect_div %in% places) 
+
+
+
+sa1_eqa <- read_sf(geopath_EQA_GPA, layer = "census2016_eqa_vic_sa1_short") %>%
+  mutate(centroid = map(geom, st_centroid),
+         centroid = st_as_sfc(centroid, crs = st_crs(vic_map)),
+         which = as.integer(st_intersects(centroid, vic_map)),
+         Elect_div = ifelse(is.na(which),
+                                 "None",
+                                    vic_map$Elect_div[which]))     
+
+sa1_eqa_places <- sa1_eqa %>%                            
+  mutate(Elect_div = toupper(Elect_div)) %>% 
+    filter(Elect_div %in% places) 
+
+sa1_cldh <- read_sf(geopath_CLDH_GPH, layer = "census2016_cldh_vic_sa1_short") %>%
+  mutate(centroid = map(geom, st_centroid),
+         centroid = st_as_sfc(centroid, crs = st_crs(vic_map)),
+         which = as.integer(st_intersects(centroid, vic_map)),
+         Elect_div = ifelse(is.na(which),
+                                 "None",
+                                    vic_map$Elect_div[which]))     
+
+sa1_cldh_places <- sa1_cldh %>%                            
+  mutate(Elect_div = toupper(Elect_div)) %>% 
+    filter(Elect_div %in% places) 
+
+
+```
+
+
+# 🔍 Analysis
+
+## Q1
+
+```{r Q1-stat,message=FALSE,warning=FALSE}
+ sa1_spca_places %>% 
+    select(sa1_7digitcode_2016,Elect_div,Tot_P_M,Tot_P_F,Tot_P_P) %>% 
+  group_by(Elect_div) %>% 
+  summarise(Total = sum(Tot_P_P)) %>% 
+  select(1:2) %>% 
+  arrange(-Total) %>% 
+  kable(caption = "No. of People livinng in each Electoral Division") %>% 
+  kable_styling(bootstrap_options = c("basic","striped,hover")) 
+```
+
+
+```{r Q1-plot,message=FALSE,warning=FALSE,fig.cap="Counnt of People liviinng ini each Electoral Diivisoin"}
+cnt_ppl <- sa1_spca_places %>% 
+    select(sa1_7digitcode_2016,Elect_div,Tot_P_M,Tot_P_F,Tot_P_P) %>% 
+  #mutate(Tot = Tot_P_M + Tot_P_F + Tot_P_P) %>% 
+  group_by(Elect_div) %>% 
+  summarise(Total = sum(Tot_P_P))
+
+
+p <- ggplot(cnt_ppl) +
+  geom_sf(aes(geometry = geom,
+              fill = Total,
+              color = Elect_div,
+              text = Elect_div)) +
+  ggtitle("Count of People living in each Electoral Division")
+
+ggplotly(p)          
+
+```
+
+Table \@ref(tab:Q1-stat), clearly tells us that **Melbourne** has the maximum population annd Figure \@ref(fig:Q1-plot) showcases the spatial distribution of population, the more dense color more is the population. You can hover over the map to see more details like ***Electoral Division***, ***count***.
+
+## Q2
+
+```{r Q2-clean,include=FALSE,message=FALSE,warning=FALSE}
+sa1_spca_places_tidy1 <- sa1_spca_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,258:542) %>% 
+  select(-c(Age_yr_0_4_M,
+            Age_yr_0_4_F,
+            Age_yr_0_4_P,
+            Age_yr_5_9_M,
+            Age_yr_5_9_F,
+            Age_yr_5_9_P,
+            Age_yr_10_14_M,
+            Age_yr_10_14_F,
+            Age_yr_10_14_P,
+            Age_yr_15_19_M,
+            Age_yr_15_19_F,
+            Age_yr_15_19_P,
+            Age_yr_20_24_M,
+            Age_yr_20_24_F,
+            Age_yr_20_24_P,
+            Age_yr_25_29_M,
+            Age_yr_25_29_F,
+            Age_yr_25_29_P,
+            Age_yr_30_34_M,
+            Age_yr_30_34_F,
+            Age_yr_30_34_P,
+            Age_yr_35_39_M,
+            Age_yr_35_39_F,
+            Age_yr_35_39_P,
+            Age_yr_40_44_M,
+            Age_yr_40_44_F,
+            Age_yr_40_44_P,
+            Age_yr_45_49_M,
+            Age_yr_45_49_F,
+            Age_yr_45_49_P,
+            Age_yr_50_54_M,
+            Age_yr_50_54_F,
+            Age_yr_50_54_P,
+            Age_yr_55_59_M,
+            Age_yr_55_59_F,
+            Age_yr_55_59_P,
+            Age_yr_60_64_M,
+            Age_yr_60_64_F,
+            Age_yr_60_64_P,
+            Age_yr_65_69_M,
+            Age_yr_65_69_F,
+            Age_yr_65_69_P,
+            Age_yr_70_74_M,
+            Age_yr_70_74_F,
+            Age_yr_70_74_P)) 
+
+sa1_spca_places_tidy2 <- sa1_spca_places_tidy1 %>% 
+  pivot_longer(cols = 3:242,
+              names_to = "category",
+              values_to = "count") %>% 
+  separate(category,into = c("temp","temp1","age","sex")) %>% 
+  select(-c(temp,temp1)) %>% 
+  filter(sex !="P")
+```
+
+
+```{r Q2-plot,message=FALSE,warning=FALSE,fig.width=8,fig.height=17,fig.cap="Age distribution (omitting those 80 years old or greater) of each electoral division"}
+ 
+Tot_agewise <- sa1_spca_places_tidy2 %>%
+  group_by(Elect_div,age) %>%
+  summarise(Tot_agewise = sum(count))
+
+
+Total <- sa1_spca_places %>% 
+    select(sa1_7digitcode_2016,Elect_div,Tot_P_M,Tot_P_F,Tot_P_P) %>% 
+  group_by(Elect_div) %>% 
+  summarise(Total = sum(Tot_P_P))
+
+
+agewise <- left_join(Tot_agewise,Total[1:2]) %>% 
+  mutate(age = as.numeric(age),
+         pct = (Tot_agewise/Total*100)) 
+  
+agewise_plot <- ggplot(agewise,aes(age,
+             pct,
+             text = Tot_agewise)) +
+  geom_col() +
+  xlim(0,80) +
+  ylab("Percentage") +
+  xlab("age (in year)") +
+  ggtitle("Age distribution (omitting those 80 years old or greater) of each electoral division ") +
+  facet_wrap(~Elect_div,ncol = 1)
+  ggplotly(agewise_plot)
+
+
+```
+
+The Figure \@ref(fig:Q2-plot) showcases the age distribution of people in each Electoral division of interest. This data was achieved from [SPCA](https://datapacks.censusdata.abs.gov.au/geopackages/) dataset after subseting the requred attributes.On hovering the mouse over each bar it teells the exact ***count*** of people of that age. 
+
+## Q3
+
+```{r Q3-clean,include=FALSE,message=FALSE,warning=FALSE}
+sa1_spca_aussi_tidy <- sa1_spca_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,68:70) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "category",
+               values_to = "count") %>% 
+  separate(category,into = c("temp","temp1","sex")) %>% 
+  unite(status,c("temp","temp1")) %>% 
+  filter(sex != "P")
+
+```
+
+
+```{r Q3-plot,fig.cap="% of Australian ciitizens in each division"}
+
+Tot_aussi_div_wise <- sa1_spca_aussi_tidy %>%
+  group_by(Elect_div) %>%
+  summarise(Tot_aussi = sum(count))
+
+aussi_pct <- left_join(Tot_aussi_div_wise,Total[1:2]) %>% 
+  mutate(auss_pct = (Tot_aussi/Total*100))
+
+aussi_pct %>%
+  ggplot(aes(reorder(Elect_div,auss_pct),
+             auss_pct,
+             fill = Elect_div)) +
+  geom_col() +
+  geom_text(aes(label = Tot_aussi)) +
+  ylab("Percentage") +
+  xlab("Electoral Division") +
+  ggtitle("% of Australian ciitizens in each division")
+
+```
+
+The Figure \@ref(fig:Q3-plot) showcases % of Australian citizens in each Electoral Division.We can notice that ***Melbourne***,***Hotham*** and ***Macnamara*** have the least population of Aussi Citizens. This is because of following factors:
+
+* **Melbourne** is a cosmopolitan city being the education hub and that may be reason of having the least count of Aussi Citizens itself.
+* **Hotham** is a mountain in Australia, therefore mostly having tourists there.[Source](https://en.wikipedia.org/wiki/Mount_Hotham)
+* **Macnamara** might have less Aussi people as we can see thiis division was created recently inn 2018.[source](https://en.wikipedia.org/wiki/Division_of_Macnamara)
+
+## Q4
+
+
+```{r Q4-plt,message=FALSE,warning=FALSE,fig.width=8,fig.height=12,fig.cap="% of 18 years and above Australians in each Division"}
+auss_cit_agewise <- agewise %>% 
+  filter(age >= 18) %>% 
+  left_join(aussi_pct) %>% 
+  mutate(aussi_agewise = round((auss_pct/100)*Tot_agewise)) %>% 
+  mutate(aussi_agewise_pct = (aussi_agewise/Total)*100) %>% 
+  group_by(Elect_div) 
+
+
+auss_cit_agewise_plt <- ggplot(auss_cit_agewise,aes(age,
+                                                    aussi_agewise_pct,
+                                                    text = aussi_agewise)) + 
+                    geom_col() +
+                    xlab("age") +
+                    ylab("% of Australian citizen") +
+                    facet_wrap(~Elect_div,ncol = 1)
+
+ggplotly(auss_cit_agewise_plt)
+```
+
+The above Figure \@ref(fig:Q4-plt) is achieved after finding Australian citizen by using ***auss_pct***  column from Q3 and ***Tot_agewise*** from Q2 to find the age-wise Australian citizen distribution and then further it's % is calculated w.r.t total papulation in each electoral division.   
+
+
+## Q5
+
+```{r Q5-clean,include=FALSE}
+sa1_clda_tidy1 <- sa1_clda_places %>% 
+  select(sa1_7digitcode_2016,
+         Elect_div,
+         295,
+        301,
+        307,
+        313,
+        319,
+        325,
+        331,
+        337,
+        343,
+        349,
+        355,
+        361,
+        367,
+        373,
+        379,
+        385,
+        391,
+        397,
+        403,
+        409,
+        415,
+        421,
+        427,
+        433,
+        439,
+        445,
+        451,
+        457,
+        463,
+        469,
+        475)
+
+sa1_clda_tidy2 <- sa1_clda_tidy1 %>% 
+  pivot_longer(cols = 3:33,
+               names_to = "Ethnicity",
+               values_to = "count")
+
+```
+
+
+```{r Q5-plot123,fig.width=12,fig.height=12,fig.cap="Top 10 reported ancestry for each electoral division"}
+sa1_clda_tidy2 %>% 
+  mutate(lgth = str_length(Ethnicity)) %>% 
+  mutate(Ethnicity = substr(Ethnicity,start = 1,stop = (lgth -9))) %>% 
+  mutate(Ethnicity = str_replace(Ethnicity,"Aust","Australian")) %>% 
+  mutate(Ethnicity = str_replace(Ethnicity,"Abor","Aboriginal")) %>% 
+  group_by(Elect_div,Ethnicity) %>% 
+  summarise(Tot = sum(count)) %>%
+  group_by(Elect_div) %>% 
+  arrange(-Tot) %>% 
+  slice_max(Tot,n = 10) %>% 
+  mutate(Elect_div1 = reorder_within(Ethnicity,Tot,Elect_div)) %>% 
+  #ungroup() %>% 
+  ggplot(aes(Tot,
+             Elect_div1,
+             fill = Ethnicity)) +
+  geom_col() +
+  scale_y_reordered() + 
+  geom_text(aes(label = Tot)) +
+  ggtitle("Top 10 reported ancestry for each electoral division") + 
+  facet_wrap(~Elect_div,ncol = 3,scales = "free")
+
+```
+The Figure \@ref(fig:Q5-plot123) is achieved using [CLDA](https://datapacks.censusdata.abs.gov.au/geopackages/) dataset.It showcases top 10 reported ancestry for each electoral division of interest.
+Few interesting observations:
+
+* Mostly either **Chinese** or **English** topped in each electoral division.
+* On the other hand, **German**, **Polish** and **Vietnamese** were found to be least populated.
+
+## Q6
+
+```{r Q6-clean,include=FALSE}
+sa1_cldh_budhism <- sa1_cldh_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,2:4) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Religion",
+               values_to = "Count") %>% 
+  separate(Religion,into = c("Religion","Sex"))
+
+sa1_cldh_Christianity_Anglican <- sa1_cldh_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,5:7) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Religion",
+               values_to = "Count") %>% 
+  separate(Religion,into = c("temp","temp1","Sex")) %>% 
+  unite(Religion,c(temp,temp1))
+
+sa1_cldh_Christianity_Asyrin_Apstlic <- sa1_cldh_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,8:10) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Religion",
+               values_to = "Count") %>% 
+  separate(Religion,into = c("temp","temp1","temp2","Sex")) %>% 
+  unite(Religion,c(temp,temp1,temp2))
+
+sa1_cldh_Christianity_Baptist <- sa1_cldh_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,11:13) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Religion",
+               values_to = "Count") %>% 
+  separate(Religion,into = c("temp","temp1","Sex")) %>% 
+  unite(Religion,c(temp,temp1))
+
+sa1_cldh_Christianity_Brethren <- sa1_cldh_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,14:16) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Religion",
+               values_to = "Count") %>% 
+  separate(Religion,into = c("temp","temp1","Sex")) %>% 
+  unite(Religion,c(temp,temp1))
+
+sa1_cldh_Christianity_Catholic <- sa1_cldh_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,17:19) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Religion",
+               values_to = "Count") %>% 
+  separate(Religion,into = c("temp","temp1","Sex")) %>% 
+  unite(Religion,c(temp,temp1))
+
+sa1_cldh_Christianity_Church_Christ <- sa1_cldh_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,20:22) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Religion",
+               values_to = "Count") %>% 
+  separate(Religion,into = c("temp","temp1","temp2","Sex")) %>% 
+  unite(Religion,c(temp,temp1,temp2))
+
+sa1_cldh_Christianity_Eastrn_Orthdox <- sa1_cldh_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,23:25) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Religion",
+               values_to = "Count") %>% 
+  separate(Religion,into = c("temp","temp1","temp2","Sex")) %>% 
+  unite(Religion,c(temp,temp1,temp2))
+
+sa1_cldh_Christinty_Jehvahs_Witnses <- sa1_cldh_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,26:28) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Religion",
+               values_to = "Count") %>% 
+  separate(Religion,into = c("temp","temp1","temp2","Sex")) %>% 
+  unite(Religion,c(temp,temp1,temp2))
+
+sa1_cldh_Christianity_Lattr_day_Snts <- sa1_cldh_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,29:31) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Religion",
+               values_to = "Count") %>% 
+  separate(Religion,into = c("temp","temp1","temp2","temp3","Sex")) %>% 
+  unite(Religion,c(temp,temp1,temp2,temp3))
+
+
+sa1_cldh_Christianity_Lutheran <- sa1_cldh_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,32:34) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Religion",
+               values_to = "Count") %>% 
+  separate(Religion,into = c("temp","temp1","Sex")) %>% 
+  unite(Religion,c(temp,temp1))
+
+
+sa1_cldh_Christianity_Orintal_Orthdx <- sa1_cldh_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,35:37) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Religion",
+               values_to = "Count") %>% 
+  separate(Religion,into = c("temp","temp1","temp2","Sex")) %>% 
+  unite(Religion,c(temp,temp1,temp2))
+
+sa1_cldh_Christianity_Othr_Protestnt <- sa1_cldh_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,38:40) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Religion",
+               values_to = "Count") %>% 
+  separate(Religion,into = c("temp","temp1","temp2","Sex")) %>% 
+  unite(Religion,c(temp,temp1,temp2))
+
+
+sa1_cldh_Christianity_Pentecostal <- sa1_cldh_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,41:43) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Religion",
+               values_to = "Count") %>% 
+  separate(Religion,into = c("temp","temp1","Sex")) %>% 
+  unite(Religion,c(temp,temp1))
+
+
+sa1_cldh_Christinty_Prsbytrin_Refrmd <- sa1_cldh_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,44:46) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Religion",
+               values_to = "Count") %>% 
+  separate(Religion,into = c("temp","temp1","temp2","Sex")) %>% 
+  unite(Religion,c(temp,temp1,temp2))
+
+
+sa1_cldh_Christianity_Salvation_Army <- sa1_cldh_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,47:49) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Religion",
+               values_to = "Count") %>% 
+  separate(Religion,into = c("temp","temp1","temp2","Sex")) %>% 
+  unite(Religion,c(temp,temp1,temp2))
+
+
+sa1_cldh_Christnty_Sevnth_dy_Advntst <- sa1_cldh_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,50:52) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Religion",
+               values_to = "Count") %>% 
+  separate(Religion,into = c("temp","temp1","temp2","temp3","Sex")) %>% 
+  unite(Religion,c(temp,temp1,temp2,temp3))
+
+
+sa1_cldh_Christianity_Uniting_Church <- sa1_cldh_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,53:55) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Religion",
+               values_to = "Count") %>% 
+  separate(Religion,into = c("temp","temp1","temp2","Sex")) %>% 
+  unite(Religion,c(temp,temp1,temp2))
+
+
+sa1_cldh_Christianity_Christian_nfd <- sa1_cldh_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,56:58) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Religion",
+               values_to = "Count") %>% 
+  separate(Religion,into = c("temp","temp1","temp2","Sex")) %>% 
+  unite(Religion,c(temp,temp1,temp2))
+
+
+sa1_cldh_Christianity_Othr_Christian <- sa1_cldh_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,59:61) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Religion",
+               values_to = "Count") %>% 
+  separate(Religion,into = c("temp","temp1","temp2","Sex")) %>% 
+  unite(Religion,c(temp,temp1,temp2))
+
+
+sa1_cldh_Christianity_Tot <- sa1_cldh_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,62:64) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Religion",
+               values_to = "Count") %>% 
+  separate(Religion,into = c("temp","temp1","Sex")) %>% 
+  unite(Religion,c(temp,temp1))
+
+
+sa1_cldh_Hinduism <- sa1_cldh_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,65:67) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Religion",
+               values_to = "Count") %>% 
+  separate(Religion,into = c("Religion","Sex"))
+
+sa1_cldh_Islam <- sa1_cldh_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,68:70) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Religion",
+               values_to = "Count") %>% 
+  separate(Religion,into = c("Religion","Sex"))
+
+
+sa1_cldh_Judaism <- sa1_cldh_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,71:73) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Religion",
+               values_to = "Count") %>% 
+  separate(Religion,into = c("Religion","Sex"))
+
+
+sa1_cldh_Aust_Abor_Trad_Rel <- sa1_cldh_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,74:76) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Religion",
+               values_to = "Count") %>% 
+  separate(Religion,into = c("temp","temp1","temp2","temp3","temp4","temp5","Sex")) %>% 
+  select(-c(temp,temp1)) %>% 
+  unite(Religion,c(temp2,temp3,temp4,temp5))
+
+sa1_cldh_Sikhism <- sa1_cldh_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,77:79) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Religion",
+               values_to = "Count") %>% 
+  separate(Religion,into = c("temp","temp1","Religion","Sex")) %>% 
+  select(-c(temp,temp1)) 
+
+
+sa1_cldh_Other_reln_groups <- sa1_cldh_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,80:82) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Religion",
+               values_to = "Count") %>% 
+  separate(Religion,into = c("temp","temp1","temp2","temp3","temp4","Sex")) %>% 
+  select(-c(temp,temp1)) %>% 
+  unite(Religion,c(temp2,temp3,temp4))
+
+sa1_cldh_final_christ <- rbind(sa1_cldh_Christianity_Anglican,
+                              sa1_cldh_Christianity_Asyrin_Apstlic,
+                              sa1_cldh_Christianity_Baptist,
+                              sa1_cldh_Christianity_Brethren,
+                              sa1_cldh_Christianity_Catholic,
+                              sa1_cldh_Christianity_Church_Christ,
+                              sa1_cldh_Christianity_Eastrn_Orthdox,
+                              sa1_cldh_Christinty_Jehvahs_Witnses,
+                              sa1_cldh_Christianity_Lattr_day_Snts,
+                              sa1_cldh_Christianity_Lutheran,
+                              sa1_cldh_Christianity_Orintal_Orthdx,
+                              sa1_cldh_Christianity_Othr_Protestnt,
+                              sa1_cldh_Christianity_Pentecostal,
+                              sa1_cldh_Christinty_Prsbytrin_Refrmd,
+                              sa1_cldh_Christianity_Salvation_Army,
+                              sa1_cldh_Christnty_Sevnth_dy_Advntst,
+                              sa1_cldh_Christianity_Uniting_Church,
+                              sa1_cldh_Christianity_Christian_nfd,
+                              sa1_cldh_Christianity_Othr_Christian)
+
+sa1_cldh_final_tot <- rbind(sa1_cldh_budhism,
+                              sa1_cldh_Christianity_Tot,
+                              sa1_cldh_Hinduism,
+                              sa1_cldh_Islam,
+                              sa1_cldh_Judaism,
+                              sa1_cldh_Aust_Abor_Trad_Rel,
+                              sa1_cldh_Sikhism,
+                              sa1_cldh_Other_reln_groups)
+
+```
+
+```{r Q6-plot1,message=FALSE,warning=FALSE,fig.width=8,fig.height=12,fig.cap="Graphical Distriibution of religion of People w.r.t Electtoral Division"}
+sa1_cldh_final_tot %>%
+  filter(Sex != "P") %>% 
+  group_by(Elect_div,Religion) %>% 
+  summarise(Tot1 = sum(Count)) %>% 
+  mutate(Religion = str_replace(Religion,"Christianity_Tot","Christianity")) %>% 
+  mutate(Religion1 = reorder_within(Religion,Tot1,Elect_div)) %>% 
+  ggplot(aes(Tot1,
+         Religion1,
+         fill =  Religion)) +
+  geom_col() +
+  scale_y_reordered() +
+  geom_text(aes(label = Tot1)) +
+  xlab("Count of persons") +
+  ylab("Types of Religion") +
+  ggtitle("Distriibution ofReligion in each Electoral Divisioin") +
+  facet_wrap(~Elect_div,ncol = 1,scales = "free")
+```
+
+
+```{r Q6-plot,message=FALSE,warning=FALSE,fig.cap="Spatial Distriibution of religion of People w.r.t Electtoral Division"}
+religion_data <- sa1_cldh_final_tot %>% 
+  filter(Sex != "P")
+
+religion_plt <- ggplot(religion_data) +
+  geom_sf(aes(geometry = geom,
+              fill = Count,
+              color = Elect_div,
+              text = Religion)) +
+  ggtitle("Distriibution of religion of People")
+ggplotly(religion_plt)
+
+```
+The Figures \@ref(fig:Q6-plot1) and \@ref(fig:Q6-plot) are achieved using [CLDH](https://datapacks.censusdata.abs.gov.au/geopackages/) dataset.Both of them showcases distribution of Religous background for each electoral division of interest.
+
+Few interesting obersations:
+
+* Christanity was the most practised religion in each electoral division. 
+* On the other hand Australian aboriginal Traditonal religion was least practised (Maybe due to low size of the community itself).
+* Within Christanity itself, there are many variations and same can be seen in Figure \@ref(fig:Q6-christ) 
+
+
+```{r Q6-christ,message=FALSE,warning=FALSE,fig.width=8,fig.height=12,fig.cap="Graphical Distribution of Christianity religion of People w.r.t Electtoral Division"}
+sa1_cldh_final_christ %>% 
+  filter(Sex != "P") %>% 
+  group_by(Elect_div,Religion) %>% 
+  summarise(Total_chris = sum(Count)) %>% 
+  group_by(Elect_div) %>% 
+  arrange(-Total_chris) %>% 
+  slice_max(Total_chris,n = 5) %>% 
+  mutate(Religion1 = reorder_within(Religion,Total_chris,Elect_div)) %>% 
+  ggplot(aes(Total_chris,
+         Religion1,
+         fill =  Religion,
+         text = Total_chris)) +
+  geom_col() +
+  scale_y_reordered() +
+  geom_text(aes(label = Total_chris)) +
+  xlab("Count of persons") +
+  ylab("Types of Christianty") +
+  ggtitle("Top 5 types of Christianity in each Electoral Divisioin") +
+  facet_wrap(~Elect_div,ncol = 1,scales = "free")
+```
+
+The Figures \@ref(fig:Q6-christ) is too achieved using [CLDH](https://datapacks.censusdata.abs.gov.au/geopackages/) dataset.It showcases Top 5 types of Christians for each electoral division of interest.
+
+Interesting observation:
+
+* Catholic Christians were the most in each division.
+
+
+## Q7
+
+```{r Q7-clean,include=FALSE}
+sa1_eqa_preschool <- sa1_eqa_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,2:4) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Qualification",
+               values_to = "count") %>% 
+  separate(Qualification,into = c("temp","temp1","sex")) %>% 
+  unite(Qualification,c(temp,temp1))
+
+sa1_eqa_infant_prm <- sa1_eqa_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,14:16) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Qualification",
+               values_to = "count") %>% 
+  separate(Qualification,into = c("temp","temp1","temp2","sex")) %>% 
+  unite(Qualification,c(temp,temp1)) %>% 
+  select(-temp2)
+
+sa1_eqa_seconndary <- sa1_eqa_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,26:28) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Qualification",
+               values_to = "count") %>% 
+  separate(Qualification,into = c("Qualification","temp1","sex")) %>% 
+  select(-temp1)
+
+sa1_eqa_Tec_Furt_Educ_inst <- sa1_eqa_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,44:46) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Qualification",
+               values_to = "count") %>% 
+  separate(Qualification,into = c("temp","temp1","temp2","temp3","temp4","sex")) %>% 
+  select(-temp4) %>% 
+  unite(Qualification,c(temp,temp1,temp2,temp3))
+
+sa1_eqa_Uni_other_Tert_Instit <- sa1_eqa_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,62:64) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Qualification",
+               values_to = "count") %>% 
+  separate(Qualification,into = c("temp","temp1","temp2","temp3","temp4","sex")) %>% 
+  select(-temp4) %>% 
+  unite(Qualification,c(temp,temp1,temp2,temp3))
+
+sa1_eqa_Other_type_educ_insti <- sa1_eqa_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,74:76) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Qualification",
+               values_to = "count") %>% 
+  separate(Qualification,into = c("temp","temp1","temp2","temp3","temp4","sex")) %>% 
+  select(-temp4) %>% 
+  unite(Qualification,c(temp,temp1,temp2,temp3))
+
+sa1_eqa_12 <- sa1_eqa_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,92,172,252) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Qualification",
+               values_to = "count") %>% 
+  separate(Qualification,into = c("sex","Qualification","temp")) %>%
+  select(1:3,Qualification,sex,count)
+
+sa1_eqa_11 <- sa1_eqa_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,102,182,262) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Qualification",
+               values_to = "count") %>% 
+  separate(Qualification,into = c("sex","Qualification","temp")) %>%
+  select(1:3,Qualification,sex,count)
+
+sa1_eqa_10 <- sa1_eqa_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,112,192,272) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Qualification",
+               values_to = "count") %>% 
+  separate(Qualification,into = c("sex","Qualification","temp")) %>%
+  select(1:3,Qualification,sex,count)
+
+sa1_eqa_9 <- sa1_eqa_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,122,202,282) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Qualification",
+               values_to = "count") %>% 
+  separate(Qualification,into = c("sex","Qualification","temp")) %>%
+  select(1:3,Qualification,sex,count)
+
+sa1_eqa_8 <- sa1_eqa_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,132,212,292) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Qualification",
+               values_to = "count") %>% 
+  separate(Qualification,into = c("sex","Qualification","temp")) %>%
+  select(1:3,Qualification,sex,count)
+
+sa1_eqa_DNGTS <- sa1_eqa_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,142,222,302) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Qualification",
+               values_to = "count") %>% 
+  separate(Qualification,into = c("sex","Qualification","temp")) %>%
+  select(1:3,Qualification,sex,count)
+
+sa1_eqa_PG <- sa1_eqa_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,397,496,595) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Qualification",
+               values_to = "count") %>% 
+  separate(Qualification,into = c("sex","temp","temp1","temp2")) %>%
+  unite(Qualification,c(temp,temp1)) %>% 
+  select(1:3,Qualification,sex,count)
+
+sa1_eqa_GradDip_and_GradCert <- sa1_eqa_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,406,505,604) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Qualification",
+               values_to = "count") %>% 
+  separate(Qualification,into = c("sex","temp","temp1","temp2","temp3")) %>%
+  unite(Qualification,c(temp,temp1,temp2)) %>% 
+  select(1:3,Qualification,sex,count)
+
+sa1_eqa_BachDeg <- sa1_eqa_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,415,514,613) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Qualification",
+               values_to = "count") %>% 
+  separate(Qualification,into = c("sex","Qualification","temp1")) %>%
+  select(1:3,Qualification,sex,count)
+
+sa1_eqa_AdvDip_and_Dip <- sa1_eqa_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,424,523,622) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Qualification",
+               values_to = "count") %>% 
+  separate(Qualification,into = c("sex","temp","temp1","temp2","temp3")) %>%
+  unite(Qualification,c(temp,temp1,temp2)) %>% 
+  select(1:3,Qualification,sex,count)
+
+sa1_eqa_Cert_III_IV <- sa1_eqa_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,433,532,631) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Qualification",
+               values_to = "count") %>% 
+  separate(Qualification,into = c("sex","temp","temp1","temp2","temp3")) %>%
+  unite(Qualification,c(temp,temp1,temp2)) %>% 
+  select(1:3,Qualification,sex,count)
+
+sa1_eqa_Cert_I_II <- sa1_eqa_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,442,541,640) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Qualification",
+               values_to = "count") %>% 
+  separate(Qualification,into = c("sex","temp","temp1","temp2","temp3")) %>%
+  unite(Qualification,c(temp,temp1,temp2)) %>% 
+  select(1:3,Qualification,sex,count)
+
+sa1_eqa_Cert_Levl_nfd <- sa1_eqa_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,451,550,649) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Qualification",
+               values_to = "count") %>% 
+  separate(Qualification,into = c("sex","temp","temp1","temp2","temp3")) %>%
+  unite(Qualification,c(temp,temp1,temp2)) %>% 
+  select(1:3,Qualification,sex,count)
+
+sa1_eqa_Cert_Lev_Tot <- sa1_eqa_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,460,559,658) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Qualification",
+               values_to = "count") %>% 
+  separate(Qualification,into = c("sex","temp","temp1","temp2","temp3")) %>%
+  unite(Qualification,c(temp,temp1,temp2)) %>% 
+  select(1:3,Qualification,sex,count)
+
+sa1_eqa_Lev_Edu_IDes <- sa1_eqa_places %>% 
+  select(sa1_7digitcode_2016,Elect_div,469,568,667) %>% 
+  pivot_longer(cols = 3:5,
+               names_to = "Qualification",
+               values_to = "count") %>% 
+  separate(Qualification,into = c("sex","temp","temp1","temp2","temp3")) %>%
+  unite(Qualification,c(temp,temp1,temp2)) %>% 
+  select(1:3,Qualification,sex,count)
+
+sa1_eqa_tidy <- rbind(sa1_eqa_preschool,
+                      sa1_eqa_infant_prm,
+                      sa1_eqa_seconndary,
+                      sa1_eqa_Tec_Furt_Educ_inst,
+                      sa1_eqa_Uni_other_Tert_Instit,
+                      sa1_eqa_Other_type_educ_insti,
+                      sa1_eqa_12,
+                      sa1_eqa_11,
+                      sa1_eqa_10,
+                      sa1_eqa_9,
+                      sa1_eqa_8,
+                      sa1_eqa_DNGTS,
+                      sa1_eqa_PG,
+                      sa1_eqa_GradDip_and_GradCert,
+                      sa1_eqa_BachDeg,
+                      sa1_eqa_AdvDip_and_Dip,
+                      sa1_eqa_Cert_Lev_Tot,
+                      sa1_eqa_Lev_Edu_IDes)
+    
+
+sa1_eqa_tidy_cert <- rbind(sa1_eqa_Cert_III_IV,
+                      sa1_eqa_Cert_I_II,
+                      sa1_eqa_Cert_Levl_nfd)
+```
+
+
+```{r Q7-plot,fig.width=8,fig.height=12,fig.cap="op 10 Qualifications in each Electoral Divisio"}
+ sa1_eqa_tidy %>% 
+  filter(sex != "P") %>% 
+  group_by(Elect_div,Qualification) %>% 
+  summarise(Total_qual = sum(count)) %>%
+  left_join(Total[1:2]) %>% 
+  mutate(pct = (Total_qual/Total)*100) %>% 
+  group_by(Elect_div) %>% 
+  slice_max(pct,n=10) %>%  
+  mutate(Qual1 = reorder_within(Qualification,pct,Elect_div)) %>% 
+  ggplot(aes(pct,
+             Qual1,
+             fill = Qualification)) +
+  geom_col() +
+  scale_y_reordered() +
+  geom_text(aes(label = Total)) +
+  xlab("Qualification")+
+  ylab("Total") +
+  ggtitle("Top 10 Qualifications in each Electoral Division") +
+  facet_wrap(~Elect_div,ncol = 1, scales = "free")
+
+```
+
+The Figures \@ref(fig:Q7-plot) is too achieved using [EQA](https://datapacks.censusdata.abs.gov.au/geopackages/) dataset.It showcases highest level of qualification that was mostly received by people for each electoral division of interest.
+
+Interesting observation:
+
+* Mostly every one were in there **Year 12** in each division.
+* On the other hand,the least were in **Year 10** in each division except **MACNAMARA** and **HOTHAM** having **Secondary level** being least populated.
+
+This graph also make me think about these few fun-facts:
+ 
+* The inflow of students is not equal to outflow of students.
+* The above maybe due to less population or low population growth rate in Australia unlike country like where population growth rate is immense and inflow is either equal to outflow or more than outflow of students.
+
+
+```{r Q7-cert,message=FALSE,warning=FALSE,fig.width=8,fig.height=12,fig.cap="Counnt of each Ceertification w.r.t Electoral Division"}
+sa1_eqa_tidy_cert %>% 
+  filter(sex != "P") %>% 
+  group_by(Elect_div,Qualification) %>% 
+  summarise(Total_qual = sum(count)) %>%
+  left_join(Total[1:2]) %>% 
+  mutate(pct = (Total_qual/Total)*100) %>% 
+  mutate(Qual1 = reorder_within(Qualification,pct,Elect_div)) %>% 
+  ggplot(aes(pct,
+             Qual1,
+             fill = Qualification)) +
+  geom_col() +
+  scale_y_reordered() +
+  geom_text(aes(label = Total)) +
+  xlab("Qualification")+
+  ylab("Total") +
+  ggtitle("Top Certifcation in each Electoral Division") +
+  facet_wrap(~Elect_div,ncol = 1, scales = "free")
+
+```
+
+The figure \@ref(fig:Q7-cert) is too achieved using [EQA](https://datapacks.censusdata.abs.gov.au/geopackages/) dataset.It showcases the different types of certification in each Electoral division of interest. It also tells which certification mostly people have done.
+
+## Q8
+
+The Datasets used in this assigment arre :
+
+* Electoral district geographical boundaries [Download the ESRI (.shp) zip file for Victoria.](https://www.aec.gov.au/electorates/gis/licence.htm)
+* Cultural and language Diversity Geopack A [(CLDA)](https://datapacks.censusdata.abs.gov.au/geopackages/).
+* Cultural and language Diversity Geopack H [(CLDA)](https://datapacks.censusdata.abs.gov.au/geopackages/).
+* Education and Qualificatoin Geopack A [(EQA)](https://datapacks.censusdata.abs.gov.au/geopackages/).
+* Selected person Charatersitic Geopack A [(SPCA)](https://datapacks.censusdata.abs.gov.au/geopackages/).
+
+
+# Resources
+
+Below two websites were used to do this project:
+
+* [Australian Bureau of Statistics](https://datapacks.censusdata.abs.gov.au/geopackages/)
+* [Australian Electoral Commission](https://www.aec.gov.au/electorates/gis/licence.htm)
